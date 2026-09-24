@@ -1,0 +1,50 @@
+{
+  "name": "worktree-watcher",
+  "displayName": "Worktree Watcher",
+  "description": "Watches directories for new git worktrees and automatically adds/removes them as workspace folders.",
+  "version": "0.0.3",
+  "publisher": "thomasholmes",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "worktreeWatcher.scan",
+        "title": "Worktree Watcher: Scan Now"
+      }
+    ],
+    "configuration": {
+      "title": "Worktree Watcher",
+      "properties": {
+        "worktreeWatcher.directories": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "scope": "machine-overridable",
+          "markdownDescription": "Directories to watch for git worktrees (absolute paths, `~` is expanded). Any direct child folder that is a linked git worktree is added to the workspace automatically, and removed from the workspace when the worktree is deleted."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.4.0"
+  }
+}
