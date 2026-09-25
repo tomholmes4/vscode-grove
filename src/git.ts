@@ -1,5 +1,6 @@
 import { execFile } from 'child_process';
 import { existsSync, promises as fsp } from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import { promisify } from 'util';
 
@@ -286,5 +287,24 @@ export async function pinNxWorkspaceRoot(
     log('Marked .vscode/settings.json skip-worktree');
   } catch (err) {
     log(`Could not skip-worktree .vscode/settings.json (continuing): ${err}`);
+  }
+}
+
+/**
+ * Trusts the worktree's mise config so its env/tools activate without a prompt.
+ * `mise` is typically a shell function wrapping ~/.local/bin/mise, so we invoke
+ * the binary directly (PATH fallback). Non-fatal.
+ */
+export async function trustMise(
+  worktreePath: string,
+  log: (message: string) => void
+): Promise<void> {
+  const homeBin = path.join(os.homedir(), '.local', 'bin', 'mise');
+  const bin = existsSync(homeBin) ? homeBin : 'mise';
+  try {
+    log('Running mise trust');
+    await execFileAsync(bin, ['trust'], { cwd: worktreePath });
+  } catch (err) {
+    log(`mise trust failed (continuing): ${err}`);
   }
 }

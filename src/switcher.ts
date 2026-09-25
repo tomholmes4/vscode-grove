@@ -9,6 +9,7 @@ import {
   listWorktrees,
   pinNxWorkspaceRoot,
   resolveRepo,
+  trustMise,
   Worktree,
 } from './git';
 import { getOpenWorktreePaths, normalize } from './registry';
@@ -111,6 +112,8 @@ async function createAndOpen(
         progress.report({ message: 'cloning node_modules…' });
         // Copy-on-write clone deps from the main checkout, matching gt-wt.
         await cloneWorktreeDependencies(mainRoot, worktreePath, log);
+        progress.report({ message: 'mise trust…' });
+        await trustMise(worktreePath, log);
         progress.report({ message: 'pinning Nx workspace root…' });
         await pinNxWorkspaceRoot(worktreePath, log);
       }
