@@ -2,6 +2,8 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { registerSwitchCommand } from './switcher';
+import { registerWindow, unregisterWindow } from './registry';
 
 const CONFIG_SECTION = 'worktreeWatcher';
 
@@ -54,11 +56,28 @@ export function activate(context: vscode.ExtensionContext): void {
     new vscode.Disposable(() => stopWatchers())
   );
 
+  // The switcher advertises this window's worktrees so sibling windows can
+  // decide whether to focus an existing window or open a new one.
+  registerSwitchCommand(context, log);
+  updateWindowRegistration();
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeWorkspaceFolders(() => updateWindowRegistration()),
+    new vscode.Disposable(() => unregisterWindow())
+  );
+
   restartWatchers();
 }
 
 export function deactivate(): void {
   stopWatchers();
+  unregisterWindow();
+}
+
+function updateWindowRegistration(): void {
+  const paths = (vscode.workspace.workspaceFolders ?? [])
+    .filter((f) => f.uri.scheme === 'file')
+    .map((f) => f.uri.fsPath);
+  registerWindow(paths);
 }
 
 function log(message: string): void {

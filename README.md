@@ -6,6 +6,15 @@ Watches one or more directories for new git worktrees and keeps them in sync wit
 - When the worktree folder is deleted (e.g. `git worktree remove`), or its repository is closed, it is removed from the workspace.
 - On startup, when workspace folders change, and via the **Worktree Watcher: Scan Now** command, existing worktrees in watched directories are (re)synced against the open repositories.
 
+## Switch Worktree
+
+The **Worktree Watcher: Switch Worktree** command (`cmd+alt+w` / `ctrl+alt+w`) opens a picker of the git repository's worktrees:
+
+- Selecting a worktree that already has an open window **focuses that window** (via the `code` CLI, which raises an already-open folder — the extension API can't).
+- Selecting a worktree with no open window **opens it in a new window** (`code -n`).
+
+To know which worktrees already have a window, each window records the worktrees it has open in a small registry under the OS temp directory (`worktree-watcher-windows/<pid>.json`), heartbeated while the window lives and reaped when the process dies. If the registry is momentarily wrong, the `code` CLI's own de-duplication still focuses an already-open folder, so the worst case is one wrong window action, never lost work.
+
 ## Configuration
 
 ```jsonc

@@ -19,6 +19,17 @@
       {
         "command": "worktreeWatcher.scan",
         "title": "Worktree Watcher: Scan Now"
+      },
+      {
+        "command": "worktreeWatcher.switchWorktree",
+        "title": "Worktree Watcher: Switch Worktree"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "worktreeWatcher.switchWorktree",
+        "key": "ctrl+alt+w",
+        "mac": "cmd+alt+w"
       }
     ],
     "configuration": {
