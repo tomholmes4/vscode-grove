@@ -106,3 +106,52 @@ export function parseWorktrees(out: string): Worktree[] {
   flush();
   return trees;
 }
+
+/**
+ * Graphite-tracked branch names, obtained by running `gt ls`. Graphite's
+ * on-disk cache (`.graphite_cache_persist`) and its `refs/branch-metadata/*`
+ * refs both go stale — only invoking `gt` reflects the live stack — so we parse
+ * its output despite that being less structured than a file read.
+ */
+export async function listGraphiteBranches(cwd: string): Promise<string[]> {
+  let stdout: string;
+  try {
+    ({ stdout } = await execFileAsync('gt', ['ls', '--no-interactive'], {
+      cwd,
+      // NO_COLOR drops the ANSI styling; the tree glyphs still need stripping.
+      env: { ...process.env, NO_COLOR: '1', FORCE_COLOR: '0' },
+      maxBuffer: 10 * 1024 * 1024,
+    }));
+  } catch {
+    return [];
+  }
+  return parseGraphiteBranches(stdout);
+}
+
+/**
+ * Extracts branch names from `gt ls` output. Each line is a stack graph row:
+ * ANSI styling, then tree glyphs (│ ◯ ◉ ─ ┴ ┘ …), then the branch name, then
+ * optional ` (needs restack)` / ` (<worktree-name>)` annotations. The branch
+ * is the first whitespace token that starts with an alphanumeric.
+ */
+export function parseGraphiteBranches(out: string): string[] {
+  const branches: string[] = [];
+  for (const raw of out.split('\n')) {
+    const line = raw.replace(/\x1b\[[0-9;]*m/g, '');
+    for (const token of line.split(/\s+/)) {
+      if (/^[A-Za-z0-9][\w./-]*$/.test(token)) {
+        branches.push(token);
+        break;
+      }
+    }
+  }
+  return branches;
+}
+
+export async function addWorktree(
+  cwd: string,
+  worktreePath: string,
+  branch: string
+): Promise<void> {
+  await execFileAsync('git', ['worktree', 'add', worktreePath, branch], { cwd });
+}

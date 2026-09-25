@@ -8,12 +8,15 @@ Watches one or more directories for new git worktrees and keeps them in sync wit
 
 ## Switch Worktree
 
-The **Worktree Watcher: Switch Worktree** command (`cmd+alt+w` / `ctrl+alt+w`) opens a picker of the git repository's worktrees:
+The **Worktree Watcher: Switch Worktree** command (`cmd+alt+w` / `ctrl+alt+w`) opens a picker of the git repository's worktrees plus any Graphite-tracked branches that don't have a worktree yet:
 
 - Selecting a worktree that already has an open window **focuses that window** (via the `code` CLI, which raises an already-open folder — the extension API can't).
 - Selecting a worktree with no open window **opens it in a new window** (`code -n`).
+- Selecting a Graphite branch **creates a worktree** for it (`git worktree add`) under the configured base directory, then opens it in a new window.
 
 To know which worktrees already have a window, each window records the worktrees it has open in a small registry under the OS temp directory (`worktree-watcher-windows/<pid>.json`), heartbeated while the window lives and reaped when the process dies. If the registry is momentarily wrong, the `code` CLI's own de-duplication still focuses an already-open folder, so the worst case is one wrong window action, never lost work.
+
+Graphite branches are listed by running `gt ls` and parsing its output. Graphite's on-disk cache (`.graphite_cache_persist`) and its `refs/branch-metadata/*` refs both go stale, so only `gt` itself reflects the live stack.
 
 ## Configuration
 

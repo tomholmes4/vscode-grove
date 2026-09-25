@@ -35,6 +35,12 @@
     "configuration": {
       "title": "Worktree Watcher",
       "properties": {
+        "worktreeWatcher.worktreeBaseDir": {
+          "type": "string",
+          "default": "",
+          "scope": "machine-overridable",
+          "markdownDescription": "Directory under which new worktrees are created for the **Switch Worktree** command. Absolute, or relative to the repository's main worktree root. Defaults to `.claude/worktrees` inside the repository."
+        },
         "worktreeWatcher.directories": {
           "type": "array",
           "items": {
