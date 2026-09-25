@@ -4,6 +4,7 @@ import * as vscode from 'vscode';
 import { focusOrOpenWindow } from './code';
 import {
   addWorktree,
+  cloneWorktreeDependencies,
   listGraphiteBranches,
   listWorktrees,
   resolveRepo,
@@ -102,10 +103,13 @@ async function createAndOpen(
   try {
     await vscode.window.withProgress(
       { location: vscode.ProgressLocation.Notification, title: `Creating worktree for ${branch}` },
-      async () => {
+      async (progress) => {
         fs.mkdirSync(baseDir, { recursive: true });
         log(`Creating worktree for ${branch} at ${worktreePath}`);
         await addWorktree(mainRoot, worktreePath, branch);
+        progress.report({ message: 'cloning node_modules…' });
+        // Copy-on-write clone deps from the main checkout, matching gt-wt.
+        await cloneWorktreeDependencies(mainRoot, worktreePath, log);
       }
     );
   } catch (err) {

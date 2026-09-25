@@ -1,4 +1,5 @@
 import { execFile } from 'child_process';
+import { existsSync } from 'fs';
 import * as path from 'path';
 import { promisify } from 'util';
 
@@ -154,4 +155,61 @@ export async function addWorktree(
   branch: string
 ): Promise<void> {
   await execFileAsync('git', ['worktree', 'add', worktreePath, branch], { cwd });
+}
+
+/**
+ * Mirrors the repo's WorktreeCreate hook and the `gt-wt` CLI: copy-on-write
+ * clone (APFS clonefile via `cp -c`) of every node_modules folder plus .env
+ * files from the source checkout, so a freshly created worktree is usable
+ * without an `npm ci`. Uses the same find/cp flags as gt-wt. Clone failures are
+ * non-fatal — the worktree still works, just without dependencies.
+ */
+export async function cloneWorktreeDependencies(
+  sourceRoot: string,
+  worktreePath: string,
+  log: (message: string) => void
+): Promise<void> {
+  let found = '';
+  try {
+    ({ stdout: found } = await execFileAsync(
+      'find',
+      [
+        '.',
+        '-type', 'd',
+        '-name', 'node_modules',
+        '-prune',
+        '-not', '-path', './.claude/*',
+        '-not', '-path', './.git/*',
+        '-print',
+      ],
+      { cwd: sourceRoot, maxBuffer: 10 * 1024 * 1024 }
+    ));
+  } catch {
+    log('Unable to locate node_modules folders; continuing without clone.');
+  }
+
+  for (const rel of found.split('\n').map((line) => line.trim()).filter(Boolean)) {
+    const dest = path.join(worktreePath, rel);
+    // Only clone where the worktree already has the parent dir and no copy yet.
+    if (!existsSync(path.dirname(dest)) || existsSync(dest)) {
+      continue;
+    }
+    log(`Cloning ${rel}`);
+    try {
+      await execFileAsync('cp', ['-cR', path.join(sourceRoot, rel), dest]);
+    } catch {
+      log(`Clone failed for ${rel} (continuing)`);
+    }
+  }
+
+  for (const file of ['.env', '.env.local']) {
+    const src = path.join(sourceRoot, file);
+    if (existsSync(src)) {
+      try {
+        await execFileAsync('cp', ['-c', src, path.join(worktreePath, file)]);
+      } catch {
+        // non-fatal
+      }
+    }
+  }
 }
