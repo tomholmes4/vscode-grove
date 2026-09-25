@@ -18,6 +18,10 @@ To know which worktrees already have a window, each window records the worktrees
 
 Graphite branches are listed by running `gt ls` and parsing its output. Graphite's on-disk cache (`.graphite_cache_persist`) and its `refs/branch-metadata/*` refs both go stale, so only `gt` itself reflects the live stack.
 
+When creating a worktree, the extension also pins `NX_WORKSPACE_ROOT_PATH` to the new worktree in its `.vscode/settings.json` (under `terminal.integrated.env.<platform>`). Nx Console exports that variable globally and it leaks into every window's integrated terminals; with worktrees nested under the repo it points at the main checkout, so `nx` runs against the wrong root. The per-worktree workspace setting overrides the leaked value. Existing settings are merged, not overwritten.
+
+Because `.vscode/settings.json` is usually a tracked, shared file, the pin would otherwise show up as a local modification. The extension marks it `git update-index --skip-worktree` in the new worktree afterwards, so git ignores the edit in that worktree's index while leaving the committed file and the main checkout untouched.
+
 ## Configuration
 
 ```jsonc

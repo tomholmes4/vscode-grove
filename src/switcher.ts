@@ -7,6 +7,7 @@ import {
   cloneWorktreeDependencies,
   listGraphiteBranches,
   listWorktrees,
+  pinNxWorkspaceRoot,
   resolveRepo,
   Worktree,
 } from './git';
@@ -110,6 +111,8 @@ async function createAndOpen(
         progress.report({ message: 'cloning node_modules…' });
         // Copy-on-write clone deps from the main checkout, matching gt-wt.
         await cloneWorktreeDependencies(mainRoot, worktreePath, log);
+        progress.report({ message: 'pinning Nx workspace root…' });
+        await pinNxWorkspaceRoot(worktreePath, log);
       }
     );
   } catch (err) {

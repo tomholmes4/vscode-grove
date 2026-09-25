@@ -1,5 +1,5 @@
 import { execFile } from 'child_process';
-import { existsSync } from 'fs';
+import { existsSync, promises as fsp } from 'fs';
 import * as path from 'path';
 import { promisify } from 'util';
 
@@ -211,5 +211,80 @@ export async function cloneWorktreeDependencies(
         // non-fatal
       }
     }
+  }
+}
+
+/**
+ * Pins Nx's workspace root for terminals opened in the worktree window.
+ *
+ * Nx Console (the VS Code extension) exports a global `NX_WORKSPACE_ROOT_PATH`
+ * that leaks into the integrated terminals of every window; with worktrees
+ * nested under the repo it points at the main checkout, so `nx` runs against the
+ * wrong root. Setting `terminal.integrated.env.<platform>` in the worktree's
+ * workspace settings overrides that inherited value for its own terminals.
+ *
+ * Merges into any existing `.vscode/settings.json` so the committed PATH entry
+ * (and other settings) survive. Non-fatal: a parse failure leaves the file
+ * untouched rather than clobbering hand-written config.
+ */
+export async function pinNxWorkspaceRoot(
+  worktreePath: string,
+  log: (message: string) => void
+): Promise<void> {
+  const vscodeDir = path.join(worktreePath, '.vscode');
+  const settingsPath = path.join(vscodeDir, 'settings.json');
+  const envKey =
+    process.platform === 'darwin'
+      ? 'terminal.integrated.env.osx'
+      : process.platform === 'win32'
+        ? 'terminal.integrated.env.windows'
+        : 'terminal.integrated.env.linux';
+
+  let settings: Record<string, unknown> = {};
+  if (existsSync(settingsPath)) {
+    try {
+      const parsed = JSON.parse(await fsp.readFile(settingsPath, 'utf8'));
+      if (parsed && typeof parsed === 'object') {
+        settings = parsed as Record<string, unknown>;
+      }
+    } catch (err) {
+      log(`Skipping Nx root pin: ${settingsPath} is not plain JSON (${err}).`);
+      return;
+    }
+  }
+
+  const existingEnv = settings[envKey];
+  const env: Record<string, unknown> =
+    existingEnv && typeof existingEnv === 'object'
+      ? { ...(existingEnv as Record<string, unknown>) }
+      : {};
+  if (env.NX_WORKSPACE_ROOT_PATH === worktreePath) {
+    return;
+  }
+  env.NX_WORKSPACE_ROOT_PATH = worktreePath;
+  settings[envKey] = env;
+
+  try {
+    await fsp.mkdir(vscodeDir, { recursive: true });
+    await fsp.writeFile(settingsPath, JSON.stringify(settings, null, 2) + '\n', 'utf8');
+    log(`Pinned NX_WORKSPACE_ROOT_PATH in ${settingsPath}`);
+  } catch (err) {
+    log(`Failed to pin Nx workspace root (continuing): ${err}`);
+    return;
+  }
+
+  // settings.json is a tracked, shared file, so the pin would otherwise show as a
+  // local modification in every worktree. skip-worktree makes git ignore our edit
+  // in this worktree's index (its own index, so the main checkout is untouched)
+  // without reverting the committed file. No-op if the file isn't tracked here.
+  try {
+    await execFileAsync(
+      'git',
+      ['update-index', '--skip-worktree', path.join('.vscode', 'settings.json')],
+      { cwd: worktreePath }
+    );
+    log('Marked .vscode/settings.json skip-worktree');
+  } catch (err) {
+    log(`Could not skip-worktree .vscode/settings.json (continuing): ${err}`);
   }
 }
