@@ -41,6 +41,12 @@
           "scope": "machine-overridable",
           "markdownDescription": "Directory under which new worktrees are created for the **Switch Worktree** command. Absolute, or relative to the repository's main worktree root. Defaults to `.claude/worktrees` inside the repository."
         },
+        "worktreeWatcher.newBranchBase": {
+          "type": "string",
+          "default": "master",
+          "scope": "machine-overridable",
+          "markdownDescription": "Start point for branches created by the **New Branch** action in the Switch Worktree command. The new branch is created at this ref and tracked with Graphite parented on it. Defaults to `master`."
+        },
         "worktreeWatcher.directories": {
           "type": "array",
           "items": {

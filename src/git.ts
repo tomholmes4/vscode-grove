@@ -159,6 +159,54 @@ export async function addWorktree(
 }
 
 /**
+ * Creates a new branch at `base` and checks it out in a new worktree, in one
+ * step (`git worktree add -b <branch> <path> <base>`). Fails if the branch or
+ * the path already exists.
+ */
+export async function addWorktreeNewBranch(
+  cwd: string,
+  worktreePath: string,
+  branch: string,
+  base: string
+): Promise<void> {
+  await execFileAsync(
+    'git',
+    ['worktree', 'add', '-b', branch, worktreePath, base],
+    { cwd }
+  );
+}
+
+/**
+ * Registers `branch` with Graphite, parented on `parent`
+ * (`gt track <branch> --parent <parent>`). The branch is named explicitly rather
+ * than inferred from the worktree's HEAD. Run from the worktree that has it
+ * checked out. Non-fatal: a freshly created worktree is still usable if
+ * tracking fails, so this returns false instead of throwing.
+ */
+export async function graphiteTrack(
+  worktreePath: string,
+  branch: string,
+  parent: string,
+  log: (message: string) => void
+): Promise<boolean> {
+  try {
+    log(`Tracking ${branch} with Graphite (parent ${parent})`);
+    await execFileAsync(
+      'gt',
+      ['track', branch, '--parent', parent, '--no-interactive'],
+      {
+        cwd: worktreePath,
+        env: { ...process.env, NO_COLOR: '1', FORCE_COLOR: '0' },
+      }
+    );
+    return true;
+  } catch (err) {
+    log(`gt track failed (continuing): ${err}`);
+    return false;
+  }
+}
+
+/**
  * Mirrors the repo's WorktreeCreate hook and the `gt-wt` CLI: copy-on-write
  * clone (APFS clonefile via `cp -c`) of every node_modules folder plus .env
  * files from the source checkout, so a freshly created worktree is usable

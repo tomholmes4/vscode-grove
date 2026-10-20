@@ -10,6 +10,7 @@ Watches one or more directories for new git worktrees and keeps them in sync wit
 
 The **Worktree Watcher: Switch Worktree** command (`cmd+alt+w` / `ctrl+alt+w`) opens a picker of the git repository's worktrees plus any Graphite-tracked branches that don't have a worktree yet:
 
+- Selecting **New Branch** prompts for a task description, formats it into a Graphite-style branch name (`MM-DD-<slug>`, mirroring `gt branch create`, honouring your Graphite `user_config`), creates that branch off `master` (configurable via `worktreeWatcher.newBranchBase`) in a new worktree, marks it tracked with `gt track --parent <base>`, then opens it in a new window.
 - Selecting a worktree that already has an open window **focuses that window** (via the `code` CLI, which raises an already-open folder — the extension API can't).
 - Selecting a worktree with no open window **opens it in a new window** (`code -n`).
 - Selecting a Graphite branch **creates a worktree** for it (`git worktree add`) under the configured base directory, then opens it in a new window.
@@ -30,7 +31,11 @@ Because `.vscode/settings.json` is usually a tracked, shared file, the pin would
   // Absolute paths; ~ is expanded.
   "worktreeWatcher.directories": [
     "~/code/core/.claude/worktrees"
-  ]
+  ],
+
+  // Start point for branches created by the "New Branch" action.
+  // Defaults to "master".
+  "worktreeWatcher.newBranchBase": "master"
 }
 ```
 

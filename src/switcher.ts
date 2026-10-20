@@ -1,10 +1,13 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { generateBranchName } from './branchName';
 import { focusOrOpenWindow } from './code';
 import {
   addWorktree,
+  addWorktreeNewBranch,
   cloneWorktreeDependencies,
+  graphiteTrack,
   listGraphiteBranches,
   listWorktrees,
   pinNxWorkspaceRoot,
@@ -15,6 +18,7 @@ import {
 import { getOpenWorktreePaths, normalize } from './registry';
 
 const CONFIG_SECTION = 'worktreeWatcher';
+const DEFAULT_NEW_BRANCH_BASE = 'master';
 
 // `kind` is reserved by QuickPickItem (for separators), so the action
 // discriminant lives on its own field.
@@ -22,6 +26,7 @@ type ActionItem = vscode.QuickPickItem &
   (
     | { action: 'worktree'; worktree: Worktree; open: boolean }
     | { action: 'create'; branch: string }
+    | { action: 'new-branch' }
   );
 
 export function registerSwitchCommand(
@@ -70,7 +75,7 @@ async function switchWorktree(log: (message: string) => void): Promise<void> {
 
   const items = buildItems(worktrees, openPaths, graphiteBranches);
   const pick = await vscode.window.showQuickPick(items, {
-    placeHolder: 'Switch to a worktree, or create one for a Graphite branch',
+    placeHolder: 'Create a new branch, switch to a worktree, or create one for a Graphite branch',
     matchOnDescription: true,
     matchOnDetail: true,
   });
@@ -86,13 +91,52 @@ async function switchWorktree(log: (message: string) => void): Promise<void> {
     return;
   }
 
+  if (pick.action === 'new-branch') {
+    await createNewBranch(repo.mainRoot, log);
+    return;
+  }
+
   await createAndOpen(repo.mainRoot, pick.branch, log);
+}
+
+/**
+ * Prompts for a task description, formats it into a Graphite-style branch name,
+ * then creates the branch (based on the configured base), a worktree for it,
+ * tracks it with Graphite, and opens a new window.
+ */
+async function createNewBranch(
+  mainRoot: string,
+  log: (message: string) => void
+): Promise<void> {
+  const base = newBranchBase();
+  const description = await vscode.window.showInputBox({
+    prompt: `Describe the task — it becomes a branch off ${base}`,
+    placeHolder: 'e.g. fix flaky connection test dashboard',
+    validateInput: (value) =>
+      value.trim() ? undefined : 'Enter a task description.',
+  });
+  if (description === undefined || !description.trim()) {
+    return;
+  }
+
+  let branch: string;
+  try {
+    branch = generateBranchName(description);
+  } catch (err) {
+    vscode.window.showErrorMessage(`Worktree Watcher: ${err}`);
+    return;
+  }
+
+  await createAndOpen(mainRoot, branch, log, { base });
 }
 
 async function createAndOpen(
   mainRoot: string,
   branch: string,
-  log: (message: string) => void
+  log: (message: string) => void,
+  // When set, a new branch named `branch` is created at `base`, otherwise an
+  // existing branch is checked out into the worktree.
+  options?: { base: string }
 ): Promise<void> {
   const baseDir = worktreeBaseDir(mainRoot);
   const worktreePath = path.join(baseDir, slugify(branch));
@@ -108,7 +152,19 @@ async function createAndOpen(
       async (progress) => {
         fs.mkdirSync(baseDir, { recursive: true });
         log(`Creating worktree for ${branch} at ${worktreePath}`);
-        await addWorktree(mainRoot, worktreePath, branch);
+        if (options) {
+          await addWorktreeNewBranch(mainRoot, worktreePath, branch, options.base);
+          progress.report({ message: 'tracking with Graphite…' });
+          if (!(await graphiteTrack(worktreePath, branch, options.base, log))) {
+            // Don't block on the notification; the worktree is still usable.
+            void vscode.window.showWarningMessage(
+              `Worktree Watcher: created ${branch}, but \`gt track --parent ${options.base}\` failed. ` +
+                `Run it manually in the worktree; see the Worktree Watcher output for details.`
+            );
+          }
+        } else {
+          await addWorktree(mainRoot, worktreePath, branch);
+        }
         progress.report({ message: 'cloning node_modules…' });
         // Copy-on-write clone deps from the main checkout, matching gt-wt.
         await cloneWorktreeDependencies(mainRoot, worktreePath, log);
@@ -133,6 +189,12 @@ function buildItems(
   graphiteBranches: string[]
 ): (ActionItem | vscode.QuickPickItem)[] {
   const items: (ActionItem | vscode.QuickPickItem)[] = [];
+  items.push({
+    action: 'new-branch',
+    label: '$(add) New Branch',
+    description: 'create a branch from a task description',
+  });
+  items.push({ label: 'Worktrees', kind: vscode.QuickPickItemKind.Separator });
   for (const worktree of worktrees) {
     // A prunable worktree points at a directory that no longer exists on disk.
     if (worktree.prunable || worktree.bare) {
@@ -183,6 +245,13 @@ function worktreeBaseDir(mainRoot: string): string {
     return path.isAbsolute(configured) ? configured : path.join(mainRoot, configured);
   }
   return path.join(mainRoot, '.claude', 'worktrees');
+}
+
+function newBranchBase(): string {
+  const configured = vscode.workspace
+    .getConfiguration(CONFIG_SECTION)
+    .get<string>('newBranchBase', '');
+  return configured.trim() || DEFAULT_NEW_BRANCH_BASE;
 }
 
 function slugify(branch: string): string {
