@@ -2,7 +2,7 @@
   "name": "worktree-watcher",
   "displayName": "Worktree Watcher",
   "description": "Watches directories for new git worktrees and automatically adds/removes them as workspace folders.",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "publisher": "thomasholmes",
   "engines": {
     "vscode": "^1.85.0"
