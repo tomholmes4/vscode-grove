@@ -25,6 +25,17 @@ When creating a worktree, the extension also pins `NX_WORKSPACE_ROOT_PATH` to th
 
 Because `.vscode/settings.json` is usually a tracked, shared file, the pin would otherwise show up as a local modification. The extension marks it `git update-index --skip-worktree` in the new worktree afterwards, so git ignores the edit in that worktree's index while leaving the committed file and the main checkout untouched.
 
+Anything else a new worktree needs, such as `mise trust` or a codegen step, goes in `grove.postCreateCommands`, which defaults to `["mise trust"]`. Those commands run in order after the built-in setup and before the window opens. Each one runs through `/bin/sh` from the new worktree, with these variables set:
+
+| Variable | Value |
+| --- | --- |
+| `GROVE_WORKTREE_PATH` | the new worktree (also the working directory) |
+| `GROVE_BRANCH` | its branch |
+| `GROVE_MAIN_ROOT` | the main checkout |
+| `GROVE_BASE_BRANCH` | the base, for branches made with **New Branch** only |
+
+Output goes to the Grove log. stdin is closed, so a command that prompts fails instead of hanging. A failing command shows a warning but doesn't stop the commands after it, or the window from opening.
+
 ## Configuration
 
 ```jsonc
@@ -37,7 +48,13 @@ Because `.vscode/settings.json` is usually a tracked, shared file, the pin would
 
   // Start point for branches created by the "New Branch" action.
   // Defaults to "master".
-  "grove.newBranchBase": "master"
+  "grove.newBranchBase": "master",
+
+  // Shell commands run in each newly created worktree, in order.
+  // Defaults to ["mise trust"]; set [] to run nothing.
+  "grove.postCreateCommands": [
+    "mise trust"
+  ]
 }
 ```
 

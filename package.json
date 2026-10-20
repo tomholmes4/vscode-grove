@@ -51,6 +51,17 @@
           "scope": "machine-overridable",
           "markdownDescription": "Start point for branches created by the **New Branch** action in the Switch Worktree command. The new branch is created at this ref and tracked with Graphite parented on it. Defaults to `master`."
         },
+        "grove.postCreateCommands": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "mise trust"
+          ],
+          "scope": "machine-overridable",
+          "markdownDescription": "Shell commands run, in order, in each worktree the **Switch Worktree** command creates, after Grove's own setup (checkout, Graphite tracking, `node_modules` clone, Nx root pin) and before its window opens. Defaults to `[\"mise trust\"]`; set `[]` to run nothing. Each runs through `/bin/sh` from the worktree, with `GROVE_WORKTREE_PATH`, `GROVE_BRANCH`, `GROVE_MAIN_ROOT` and, for new branches, `GROVE_BASE_BRANCH` set. Output goes to the Grove log. A failing command is reported but doesn't stop the rest."
+        },
         "grove.directories": {
           "type": "array",
           "items": {

@@ -13,14 +13,15 @@ import {
   pinNxWorkspaceRoot,
   RepoContext,
   resolveRepo,
-  trustMise,
   Worktree,
 } from './git';
+import { PostCreateFailure, runPostCreateCommands } from './postCreate';
 import { formatElapsed, StepProgress } from './progress';
 import { getOpenWorktreePaths, normalize } from './registry';
 
 const CONFIG_SECTION = 'grove';
 const DEFAULT_NEW_BRANCH_BASE = 'master';
+const DEFAULT_POST_CREATE_COMMANDS = ['mise trust'];
 const SHOW_LOG = 'Show Log';
 
 // `kind` is reserved by QuickPickItem (for separators), so the action
@@ -150,8 +151,9 @@ async function createAndOpen(
     );
     return;
   }
+  const commands = postCreateCommands(repo);
   // Each step below calls steps.next(); keep this count in sync with them.
-  const steps = new StepProgress(options ? 6 : 5, log);
+  const steps = new StepProgress((options ? 5 : 4) + (commands.length ? 1 : 0), log);
   const onCheckout = (done: number, total: number) =>
     steps.update(`${done.toLocaleString()} of ${total.toLocaleString()} files`, done / total);
   let opened: boolean;
@@ -192,10 +194,24 @@ async function createAndOpen(
               total ? done / total : 1
             )
           );
-          steps.next('Trusting mise config');
-          await trustMise(worktreePath, log);
           steps.next('Pinning Nx workspace root');
           await pinNxWorkspaceRoot(worktreePath, log);
+          if (commands.length) {
+            steps.next('Running post-create commands');
+            const failures = await runPostCreateCommands(
+              commands,
+              { worktreePath, branch, mainRoot, base: options?.base },
+              log,
+              (index, command) =>
+                steps.update(
+                  `${index + 1} of ${commands.length} · ${truncate(command, 60)}`,
+                  index / commands.length
+                )
+            );
+            if (failures.length) {
+              warnPostCreateFailures(branch, failures);
+            }
+          }
           steps.next('Opening window');
           return focusOrOpenWindow(worktreePath, true, log);
         })
@@ -231,6 +247,19 @@ async function createAndOpen(
   } else if (choice === SHOW_LOG) {
     showLog();
   }
+}
+
+/** Warns, without blocking, that some post-create commands failed. */
+function warnPostCreateFailures(branch: string, failures: PostCreateFailure[]): void {
+  const list = failures.map((f) => `\`${truncate(f.command, 60)}\` (${f.reason})`).join(', ');
+  offerLog(
+    vscode.window.showWarningMessage(
+      failures.length === 1
+        ? `Grove: created ${branch}, but post-create command ${list} failed.`
+        : `Grove: created ${branch}, but ${failures.length} post-create commands failed: ${list}.`,
+      SHOW_LOG
+    )
+  );
 }
 
 /** Adds the "Show Log" button's behaviour to a notification without awaiting it. */
@@ -320,6 +349,19 @@ function newBranchBase(repo: RepoContext): string {
     .getConfiguration(CONFIG_SECTION, vscode.Uri.file(repo.cwd))
     .get<string>('newBranchBase', '');
   return configured.trim() || DEFAULT_NEW_BRANCH_BASE;
+}
+
+function postCreateCommands(repo: RepoContext): string[] {
+  const configured = vscode.workspace
+    .getConfiguration(CONFIG_SECTION, vscode.Uri.file(repo.cwd))
+    .get<unknown>('postCreateCommands', DEFAULT_POST_CREATE_COMMANDS);
+  return Array.isArray(configured)
+    ? configured.filter((c): c is string => typeof c === 'string' && c.trim() !== '')
+    : [];
+}
+
+function truncate(text: string, max: number): string {
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
 }
 
 function slugify(branch: string): string {
