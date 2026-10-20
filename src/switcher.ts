@@ -16,10 +16,12 @@ import {
   trustMise,
   Worktree,
 } from './git';
+import { formatElapsed, StepProgress } from './progress';
 import { getOpenWorktreePaths, normalize } from './registry';
 
 const CONFIG_SECTION = 'grove';
 const DEFAULT_NEW_BRANCH_BASE = 'master';
+const SHOW_LOG = 'Show Log';
 
 // `kind` is reserved by QuickPickItem (for separators), so the action
 // discriminant lives on its own field.
@@ -88,7 +90,7 @@ async function switchWorktree(log: (message: string) => void): Promise<void> {
     // `code <path>` focuses an open window; a not-open worktree needs -n so we
     // don't clobber the current window. The CLI's own de-dup is the safety net
     // if the registry is momentarily wrong.
-    focusOrOpenWindow(pick.worktree.path, !pick.open, log);
+    void focusOrOpenWindow(pick.worktree.path, !pick.open, log);
     return;
   }
 
@@ -148,41 +150,100 @@ async function createAndOpen(
     );
     return;
   }
+  // Each step below calls steps.next(); keep this count in sync with them.
+  const steps = new StepProgress(options ? 6 : 5, log);
+  const onCheckout = (done: number, total: number) =>
+    steps.update(`${done.toLocaleString()} of ${total.toLocaleString()} files`, done / total);
+  let opened: boolean;
   try {
-    await vscode.window.withProgress(
+    opened = await vscode.window.withProgress(
       { location: vscode.ProgressLocation.Notification, title: `Creating worktree for ${branch}` },
-      async (progress) => {
-        fs.mkdirSync(baseDir, { recursive: true });
-        log(`Creating worktree for ${branch} at ${worktreePath}`);
-        if (options) {
-          await addWorktreeNewBranch(mainRoot, worktreePath, branch, options.base);
-          progress.report({ message: 'tracking with Graphite…' });
-          if (!(await graphiteTrack(worktreePath, branch, options.base, log))) {
-            // Don't block on the notification; the worktree is still usable.
-            void vscode.window.showWarningMessage(
-              `Grove: created ${branch}, but \`gt track --parent ${options.base}\` failed. ` +
-                `Run it manually in the worktree; see the Grove output for details.`
-            );
+      (progress) =>
+        steps.run(progress, async () => {
+          log(`Creating worktree for ${branch} at ${worktreePath}`);
+          if (options) {
+            steps.next(`Creating branch from ${options.base}`);
+            fs.mkdirSync(baseDir, { recursive: true });
+            await addWorktreeNewBranch(mainRoot, worktreePath, branch, options.base, onCheckout);
+            steps.next('Tracking with Graphite');
+            if (!(await graphiteTrack(worktreePath, branch, options.base, log))) {
+              // Don't block on the notification; the worktree is still usable.
+              offerLog(
+                vscode.window.showWarningMessage(
+                  `Grove: created ${branch}, but \`gt track --parent ${options.base}\` failed. ` +
+                    'Run it manually in the worktree.',
+                  SHOW_LOG
+                )
+              );
+            }
+          } else {
+            steps.next('Checking out branch');
+            fs.mkdirSync(baseDir, { recursive: true });
+            await addWorktree(mainRoot, worktreePath, branch, onCheckout);
           }
-        } else {
-          await addWorktree(mainRoot, worktreePath, branch);
-        }
-        progress.report({ message: 'cloning node_modules…' });
-        // Copy-on-write clone deps from the main checkout, matching gt-wt.
-        await cloneWorktreeDependencies(mainRoot, worktreePath, log);
-        progress.report({ message: 'mise trust…' });
-        await trustMise(worktreePath, log);
-        progress.report({ message: 'pinning Nx workspace root…' });
-        await pinNxWorkspaceRoot(worktreePath, log);
-      }
+          steps.next('Cloning node_modules');
+          steps.update('finding folders…');
+          // Copy-on-write clone deps from the main checkout, matching gt-wt.
+          await cloneWorktreeDependencies(mainRoot, worktreePath, log, (done, total, current) =>
+            steps.update(
+              current
+                ? `${done + 1} of ${total} · ${current.replace(/^\.\//, '')}`
+                : total ? `${total} cloned` : 'nothing to clone',
+              total ? done / total : 1
+            )
+          );
+          steps.next('Trusting mise config');
+          await trustMise(worktreePath, log);
+          steps.next('Pinning Nx workspace root');
+          await pinNxWorkspaceRoot(worktreePath, log);
+          steps.next('Opening window');
+          return focusOrOpenWindow(worktreePath, true, log);
+        })
     );
   } catch (err) {
-    vscode.window.showErrorMessage(
-      `Grove: failed to create worktree for ${branch}: ${err}`
+    log(`Failed to create worktree for ${branch} during "${steps.current}": ${err}`);
+    offerLog(
+      vscode.window.showErrorMessage(
+        `Grove: couldn't create worktree for ${branch}. ${steps.current} failed: ` +
+          (err instanceof Error ? err.message : String(err)),
+        SHOW_LOG
+      )
     );
     return;
   }
-  focusOrOpenWindow(worktreePath, true, log);
+
+  const took = formatElapsed(steps.elapsedMs);
+  log(`Worktree for ${branch} ready in ${took}`);
+  if (opened) {
+    // The new window takes focus; this is for when you come back to this one.
+    vscode.window.setStatusBarMessage(`$(check) Grove: ${branch} ready (${took})`, 10_000);
+    return;
+  }
+  const choice = await vscode.window.showErrorMessage(
+    `Grove: created worktree for ${branch} in ${took}, but couldn't open a window for it.`,
+    'Open Folder',
+    SHOW_LOG
+  );
+  if (choice === 'Open Folder') {
+    await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(worktreePath), {
+      forceNewWindow: true,
+    });
+  } else if (choice === SHOW_LOG) {
+    showLog();
+  }
+}
+
+/** Adds the "Show Log" button's behaviour to a notification without awaiting it. */
+function offerLog(choice: Thenable<string | undefined>): void {
+  void choice.then((picked) => {
+    if (picked === SHOW_LOG) {
+      showLog();
+    }
+  });
+}
+
+function showLog(): void {
+  void vscode.commands.executeCommand('grove.showLog');
 }
 
 function buildItems(

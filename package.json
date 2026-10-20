@@ -23,6 +23,10 @@
       {
         "command": "grove.switchWorktree",
         "title": "Grove: Switch Worktree"
+      },
+      {
+        "command": "grove.showLog",
+        "title": "Grove: Show Log"
       }
     ],
     "keybindings": [

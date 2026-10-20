@@ -15,6 +15,8 @@ The **Grove: Switch Worktree** command (`cmd+alt+w` / `ctrl+alt+w`) opens a pick
 - Selecting a worktree with no open window **opens it in a new window** (`code -n`).
 - Selecting a Graphite branch **creates a worktree** for it (`git worktree add`) under the configured base directory, then opens it in a new window.
 
+While a worktree is being created, a notification walks through each step (`2/6 Tracking with Graphite`, …) with a progress bar and a per-step timer. The checkout shows files written out of the total, parsed from git's own `Updating files` progress, and the `node_modules` clone shows which folder it is on. If a step fails, the error names it and quotes git's message. **Show Log** (or **Grove: Show Log**) opens the output channel, which also records how long each step took.
+
 To know which worktrees already have a window, each window records the worktrees it has open in a small registry under the OS temp directory (`grove-windows/<pid>.json`), heartbeated while the window lives and reaped when the process dies. If the registry is momentarily wrong, the `code` CLI's own de-duplication still focuses an already-open folder, so the worst case is one wrong window action, never lost work.
 
 Graphite branches are listed by running `gt ls` and parsing its output. Graphite's on-disk cache (`.graphite_cache_persist`) and its `refs/branch-metadata/*` refs both go stale, so only `gt` itself reflects the live stack.

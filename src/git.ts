@@ -1,4 +1,4 @@
-import { execFile } from 'child_process';
+import { execFile, spawn } from 'child_process';
 import { existsSync, promises as fsp } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -150,12 +150,21 @@ export function parseGraphiteBranches(out: string): string[] {
   return branches;
 }
 
+/** Reports checkout progress as files written so far out of the total. */
+export type CheckoutProgress = (done: number, total: number) => void;
+
+// During checkout git rewrites a `Updating files:  45% (2034/4500)` line on
+// stderr (via \r). It does so even when stderr is a pipe, once the checkout has
+// run for ~2s, so short checkouts report nothing.
+const CHECKOUT_PROGRESS = /Updating files:\s+\d+% \((\d+)\/(\d+)\)/;
+
 export async function addWorktree(
   cwd: string,
   worktreePath: string,
-  branch: string
+  branch: string,
+  onProgress?: CheckoutProgress
 ): Promise<void> {
-  await execFileAsync('git', ['worktree', 'add', worktreePath, branch], { cwd });
+  await runWorktreeAdd(cwd, [worktreePath, branch], onProgress);
 }
 
 /**
@@ -167,13 +176,59 @@ export async function addWorktreeNewBranch(
   cwd: string,
   worktreePath: string,
   branch: string,
-  base: string
+  base: string,
+  onProgress?: CheckoutProgress
 ): Promise<void> {
-  await execFileAsync(
-    'git',
-    ['worktree', 'add', '-b', branch, worktreePath, base],
-    { cwd }
-  );
+  await runWorktreeAdd(cwd, ['-b', branch, worktreePath, base], onProgress);
+}
+
+/**
+ * Runs `git worktree add <args>`, streaming stderr so checkout progress can be
+ * forwarded as it happens. On failure, rejects with git's own error line (e.g.
+ * `fatal: invalid reference: master`) rather than execFile's echo of the whole
+ * command line.
+ */
+function runWorktreeAdd(
+  cwd: string,
+  args: string[],
+  onProgress?: CheckoutProgress
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn('git', ['worktree', 'add', ...args], {
+      cwd,
+      stdio: ['ignore', 'ignore', 'pipe'],
+    });
+    const lines: string[] = [];
+    let partial = '';
+    child.stderr.setEncoding('utf8');
+    child.stderr.on('data', (chunk: string) => {
+      const parts = (partial + chunk).split(/[\r\n]/);
+      partial = parts.pop() ?? '';
+      for (const line of parts) {
+        const match = CHECKOUT_PROGRESS.exec(line);
+        if (match) {
+          onProgress?.(Number(match[1]), Number(match[2]));
+        } else if (line.trim()) {
+          lines.push(line.trim());
+        }
+      }
+    });
+    child.on('error', reject);
+    child.on('close', (code, signal) => {
+      if (code === 0) {
+        resolve();
+        return;
+      }
+      if (partial.trim()) {
+        lines.push(partial.trim());
+      }
+      const message =
+        [...lines].reverse().find((line) => /^(fatal|error):/.test(line)) ??
+        lines[lines.length - 1] ??
+        `git worktree add exited with ${signal ?? `code ${code}`}`;
+      reject(new Error(message));
+    });
+  });
 }
 
 /**
@@ -216,7 +271,9 @@ export async function graphiteTrack(
 export async function cloneWorktreeDependencies(
   sourceRoot: string,
   worktreePath: string,
-  log: (message: string) => void
+  log: (message: string) => void,
+  // Called before each folder is cloned (with its path), then once at the end.
+  onProgress?: (done: number, total: number, current?: string) => void
 ): Promise<void> {
   let found = '';
   try {
@@ -237,19 +294,25 @@ export async function cloneWorktreeDependencies(
     log('Unable to locate node_modules folders; continuing without clone.');
   }
 
-  for (const rel of found.split('\n').map((line) => line.trim()).filter(Boolean)) {
-    const dest = path.join(worktreePath, rel);
-    // Only clone where the worktree already has the parent dir and no copy yet.
-    if (!existsSync(path.dirname(dest)) || existsSync(dest)) {
-      continue;
-    }
+  // Only clone where the worktree already has the parent dir and no copy yet.
+  const targets = found
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .filter((rel) => {
+      const dest = path.join(worktreePath, rel);
+      return existsSync(path.dirname(dest)) && !existsSync(dest);
+    });
+  for (const [index, rel] of targets.entries()) {
+    onProgress?.(index, targets.length, rel);
     log(`Cloning ${rel}`);
     try {
-      await execFileAsync('cp', ['-cR', path.join(sourceRoot, rel), dest]);
+      await execFileAsync('cp', ['-cR', path.join(sourceRoot, rel), path.join(worktreePath, rel)]);
     } catch {
       log(`Clone failed for ${rel} (continuing)`);
     }
   }
+  onProgress?.(targets.length, targets.length);
 
   for (const file of ['.env', '.env.local']) {
     const src = path.join(sourceRoot, file);

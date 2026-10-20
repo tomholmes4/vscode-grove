@@ -30,6 +30,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('grove.scan', () => {
       scanWatchedDirectories();
     }),
+    vscode.commands.registerCommand('grove.showLog', () => output.show(true)),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration(CONFIG_SECTION)) {
         restartWatchers();

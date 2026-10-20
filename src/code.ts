@@ -9,16 +9,23 @@ import * as vscode from 'vscode';
 // so we shell out. `code <path>` focuses if open (else reuses the current
 // window); `code -n <path>` always opens a new window.
 
+/**
+ * Resolves once the CLI has handed the request to the running VS Code: true on
+ * success, false (after reporting via `onError`) if the CLI failed.
+ */
 export function focusOrOpenWindow(
   targetPath: string,
   openInNewWindow: boolean,
   onError: (message: string) => void
-): void {
+): Promise<boolean> {
   const args = openInNewWindow ? ['-n', targetPath] : [targetPath];
-  execFile(codeBinary(), args, (err) => {
-    if (err) {
-      onError(`Failed to run code CLI (${args.join(' ')}): ${err.message}`);
-    }
+  return new Promise((resolve) => {
+    execFile(codeBinary(), args, (err) => {
+      if (err) {
+        onError(`Failed to run code CLI (${args.join(' ')}): ${err.message}`);
+      }
+      resolve(!err);
+    });
   });
 }
 
