@@ -11,6 +11,7 @@ import {
   listGraphiteBranches,
   listWorktrees,
   pinNxWorkspaceRoot,
+  RepoContext,
   resolveRepo,
   trustMise,
   Worktree,
@@ -92,11 +93,11 @@ async function switchWorktree(log: (message: string) => void): Promise<void> {
   }
 
   if (pick.action === 'new-branch') {
-    await createNewBranch(repo.mainRoot, log);
+    await createNewBranch(repo, log);
     return;
   }
 
-  await createAndOpen(repo.mainRoot, pick.branch, log);
+  await createAndOpen(repo, pick.branch, log);
 }
 
 /**
@@ -105,10 +106,10 @@ async function switchWorktree(log: (message: string) => void): Promise<void> {
  * tracks it with Graphite, and opens a new window.
  */
 async function createNewBranch(
-  mainRoot: string,
+  repo: RepoContext,
   log: (message: string) => void
 ): Promise<void> {
-  const base = newBranchBase();
+  const base = newBranchBase(repo);
   const description = await vscode.window.showInputBox({
     prompt: `Describe the task — it becomes a branch off ${base}`,
     placeHolder: 'e.g. fix flaky connection test dashboard',
@@ -127,18 +128,19 @@ async function createNewBranch(
     return;
   }
 
-  await createAndOpen(mainRoot, branch, log, { base });
+  await createAndOpen(repo, branch, log, { base });
 }
 
 async function createAndOpen(
-  mainRoot: string,
+  repo: RepoContext,
   branch: string,
   log: (message: string) => void,
   // When set, a new branch named `branch` is created at `base`, otherwise an
   // existing branch is checked out into the worktree.
   options?: { base: string }
 ): Promise<void> {
-  const baseDir = worktreeBaseDir(mainRoot);
+  const { mainRoot } = repo;
+  const baseDir = worktreeBaseDir(repo);
   const worktreePath = path.join(baseDir, slugify(branch));
   if (fs.existsSync(worktreePath)) {
     vscode.window.showErrorMessage(
@@ -237,19 +239,24 @@ function currentRepoCwd(): string | undefined {
   return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 }
 
-function worktreeBaseDir(mainRoot: string): string {
+// Settings are scoped to the folder the repo was resolved from: once the watcher
+// adds a worktree the window is multi-root, and unscoped reads would miss the
+// repo's .vscode/settings.json.
+function worktreeBaseDir(repo: RepoContext): string {
   const configured = vscode.workspace
-    .getConfiguration(CONFIG_SECTION)
+    .getConfiguration(CONFIG_SECTION, vscode.Uri.file(repo.cwd))
     .get<string>('worktreeBaseDir', '');
   if (configured) {
-    return path.isAbsolute(configured) ? configured : path.join(mainRoot, configured);
+    return path.isAbsolute(configured)
+      ? configured
+      : path.join(repo.mainRoot, configured);
   }
-  return path.join(mainRoot, '.claude', 'worktrees');
+  return path.join(repo.mainRoot, '.claude', 'worktrees');
 }
 
-function newBranchBase(): string {
+function newBranchBase(repo: RepoContext): string {
   const configured = vscode.workspace
-    .getConfiguration(CONFIG_SECTION)
+    .getConfiguration(CONFIG_SECTION, vscode.Uri.file(repo.cwd))
     .get<string>('newBranchBase', '');
   return configured.trim() || DEFAULT_NEW_BRANCH_BASE;
 }
