@@ -389,21 +389,25 @@ function enqueueWorkspaceOp(
   op: () => boolean | undefined,
   onApplied?: () => Promise<void>
 ): void {
-  opQueue = opQueue.then(async () => {
-    for (let attempt = 0; attempt < 5; attempt++) {
-      const result = op();
-      if (result === undefined) {
-        return;
+  opQueue = opQueue
+    .then(async () => {
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const result = op();
+        if (result === undefined) {
+          return;
+        }
+        if (result) {
+          await waitForWorkspaceFoldersChange();
+          await onApplied?.();
+          return;
+        }
+        await delay(300);
       }
-      if (result) {
-        await waitForWorkspaceFoldersChange();
-        await onApplied?.();
-        return;
-      }
-      await delay(300);
-    }
-    log(`Giving up on workspace update: ${description}`);
-  });
+      log(`Giving up on workspace update: ${description}`);
+    })
+    // A rejected queue would skip every later operation, so failures are
+    // contained to the operation that caused them.
+    .catch((err) => log(`Workspace update failed (${description}): ${err}`));
 }
 
 function waitForWorkspaceFoldersChange(): Promise<void> {
