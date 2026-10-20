@@ -14,7 +14,7 @@ import * as path from 'path';
 // the `code` CLI focuses an already-open folder regardless — so a stale entry
 // only ever costs one wrong window action, never data.
 
-const REGISTRY_DIR = path.join(os.tmpdir(), 'worktree-watcher-windows');
+const REGISTRY_DIR = path.join(os.tmpdir(), 'grove-windows');
 const HEARTBEAT_MS = 30_000;
 const STALE_MS = 90_000;
 

@@ -1,21 +1,21 @@
-# Worktree Watcher
+# Grove
 
 Watches one or more directories for new git worktrees and keeps them in sync with your workspace:
 
 - When a new folder appears in a watched directory and it is a linked git worktree (its `.git` is a file pointing into the parent repo's `.git/worktrees/`), it is added to the workspace automatically — but only if the repository it belongs to is currently open in the workspace.
 - When the worktree folder is deleted (e.g. `git worktree remove`), or its repository is closed, it is removed from the workspace.
-- On startup, when workspace folders change, and via the **Worktree Watcher: Scan Now** command, existing worktrees in watched directories are (re)synced against the open repositories.
+- On startup, when workspace folders change, and via the **Grove: Scan Now** command, existing worktrees in watched directories are (re)synced against the open repositories.
 
 ## Switch Worktree
 
-The **Worktree Watcher: Switch Worktree** command (`cmd+alt+w` / `ctrl+alt+w`) opens a picker of the git repository's worktrees plus any Graphite-tracked branches that don't have a worktree yet:
+The **Grove: Switch Worktree** command (`cmd+alt+w` / `ctrl+alt+w`) opens a picker of the git repository's worktrees plus any Graphite-tracked branches that don't have a worktree yet:
 
-- Selecting **New Branch** prompts for a task description, formats it into a Graphite-style branch name (`MM-DD-<slug>`, mirroring `gt branch create`, honouring your Graphite `user_config`), creates that branch off `master` (configurable via `worktreeWatcher.newBranchBase`) in a new worktree, marks it tracked with `gt track --parent <base>`, then opens it in a new window.
+- Selecting **New Branch** prompts for a task description, formats it into a Graphite-style branch name (`MM-DD-<slug>`, mirroring `gt branch create`, honouring your Graphite `user_config`), creates that branch off `master` (configurable via `grove.newBranchBase`) in a new worktree, marks it tracked with `gt track --parent <base>`, then opens it in a new window.
 - Selecting a worktree that already has an open window **focuses that window** (via the `code` CLI, which raises an already-open folder — the extension API can't).
 - Selecting a worktree with no open window **opens it in a new window** (`code -n`).
 - Selecting a Graphite branch **creates a worktree** for it (`git worktree add`) under the configured base directory, then opens it in a new window.
 
-To know which worktrees already have a window, each window records the worktrees it has open in a small registry under the OS temp directory (`worktree-watcher-windows/<pid>.json`), heartbeated while the window lives and reaped when the process dies. If the registry is momentarily wrong, the `code` CLI's own de-duplication still focuses an already-open folder, so the worst case is one wrong window action, never lost work.
+To know which worktrees already have a window, each window records the worktrees it has open in a small registry under the OS temp directory (`grove-windows/<pid>.json`), heartbeated while the window lives and reaped when the process dies. If the registry is momentarily wrong, the `code` CLI's own de-duplication still focuses an already-open folder, so the worst case is one wrong window action, never lost work.
 
 Graphite branches are listed by running `gt ls` and parsing its output. Graphite's on-disk cache (`.graphite_cache_persist`) and its `refs/branch-metadata/*` refs both go stale, so only `gt` itself reflects the live stack.
 
@@ -29,13 +29,13 @@ Because `.vscode/settings.json` is usually a tracked, shared file, the pin would
 {
   // Directories whose direct children are checked for worktrees.
   // Absolute paths; ~ is expanded.
-  "worktreeWatcher.directories": [
+  "grove.directories": [
     "~/code/core/.claude/worktrees"
   ],
 
   // Start point for branches created by the "New Branch" action.
   // Defaults to "master".
-  "worktreeWatcher.newBranchBase": "master"
+  "grove.newBranchBase": "master"
 }
 ```
 

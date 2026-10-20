@@ -1,7 +1,7 @@
 {
-  "name": "worktree-watcher",
-  "displayName": "Worktree Watcher",
-  "description": "Watches directories for new git worktrees and automatically adds/removes them as workspace folders.",
+  "name": "grove",
+  "displayName": "Grove — Git Worktrees",
+  "description": "Keeps git worktrees in your workspace, and switches between, creates and sets up worktrees in their own windows.",
   "version": "0.0.5",
   "publisher": "thomasholmes",
   "engines": {
@@ -17,37 +17,37 @@
   "contributes": {
     "commands": [
       {
-        "command": "worktreeWatcher.scan",
-        "title": "Worktree Watcher: Scan Now"
+        "command": "grove.scan",
+        "title": "Grove: Scan Now"
       },
       {
-        "command": "worktreeWatcher.switchWorktree",
-        "title": "Worktree Watcher: Switch Worktree"
+        "command": "grove.switchWorktree",
+        "title": "Grove: Switch Worktree"
       }
     ],
     "keybindings": [
       {
-        "command": "worktreeWatcher.switchWorktree",
+        "command": "grove.switchWorktree",
         "key": "ctrl+alt+w",
         "mac": "cmd+alt+w"
       }
     ],
     "configuration": {
-      "title": "Worktree Watcher",
+      "title": "Grove",
       "properties": {
-        "worktreeWatcher.worktreeBaseDir": {
+        "grove.worktreeBaseDir": {
           "type": "string",
           "default": "",
           "scope": "machine-overridable",
           "markdownDescription": "Directory under which new worktrees are created for the **Switch Worktree** command. Absolute, or relative to the repository's main worktree root. Defaults to `.claude/worktrees` inside the repository."
         },
-        "worktreeWatcher.newBranchBase": {
+        "grove.newBranchBase": {
           "type": "string",
           "default": "master",
           "scope": "machine-overridable",
           "markdownDescription": "Start point for branches created by the **New Branch** action in the Switch Worktree command. The new branch is created at this ref and tracked with Graphite parented on it. Defaults to `master`."
         },
-        "worktreeWatcher.directories": {
+        "grove.directories": {
           "type": "array",
           "items": {
             "type": "string"

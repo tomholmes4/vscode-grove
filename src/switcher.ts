@@ -18,7 +18,7 @@ import {
 } from './git';
 import { getOpenWorktreePaths, normalize } from './registry';
 
-const CONFIG_SECTION = 'worktreeWatcher';
+const CONFIG_SECTION = 'grove';
 const DEFAULT_NEW_BRANCH_BASE = 'master';
 
 // `kind` is reserved by QuickPickItem (for separators), so the action
@@ -35,7 +35,7 @@ export function registerSwitchCommand(
   log: (message: string) => void
 ): void {
   context.subscriptions.push(
-    vscode.commands.registerCommand('worktreeWatcher.switchWorktree', () =>
+    vscode.commands.registerCommand('grove.switchWorktree', () =>
       switchWorktree(log)
     )
   );
@@ -45,7 +45,7 @@ async function switchWorktree(log: (message: string) => void): Promise<void> {
   const cwd = currentRepoCwd();
   if (!cwd) {
     vscode.window.showErrorMessage(
-      'Worktree Watcher: no open folder to resolve a git repository from.'
+      'Grove: no open folder to resolve a git repository from.'
     );
     return;
   }
@@ -53,7 +53,7 @@ async function switchWorktree(log: (message: string) => void): Promise<void> {
   const repo = await resolveRepo(cwd);
   if (!repo) {
     vscode.window.showErrorMessage(
-      `Worktree Watcher: ${cwd} is not inside a git repository.`
+      `Grove: ${cwd} is not inside a git repository.`
     );
     return;
   }
@@ -62,7 +62,7 @@ async function switchWorktree(log: (message: string) => void): Promise<void> {
   try {
     worktrees = await listWorktrees(repo.cwd);
   } catch (err) {
-    vscode.window.showErrorMessage(`Worktree Watcher: failed to list worktrees: ${err}`);
+    vscode.window.showErrorMessage(`Grove: failed to list worktrees: ${err}`);
     return;
   }
 
@@ -124,7 +124,7 @@ async function createNewBranch(
   try {
     branch = generateBranchName(description);
   } catch (err) {
-    vscode.window.showErrorMessage(`Worktree Watcher: ${err}`);
+    vscode.window.showErrorMessage(`Grove: ${err}`);
     return;
   }
 
@@ -144,7 +144,7 @@ async function createAndOpen(
   const worktreePath = path.join(baseDir, slugify(branch));
   if (fs.existsSync(worktreePath)) {
     vscode.window.showErrorMessage(
-      `Worktree Watcher: ${worktreePath} already exists; not overwriting.`
+      `Grove: ${worktreePath} already exists; not overwriting.`
     );
     return;
   }
@@ -160,8 +160,8 @@ async function createAndOpen(
           if (!(await graphiteTrack(worktreePath, branch, options.base, log))) {
             // Don't block on the notification; the worktree is still usable.
             void vscode.window.showWarningMessage(
-              `Worktree Watcher: created ${branch}, but \`gt track --parent ${options.base}\` failed. ` +
-                `Run it manually in the worktree; see the Worktree Watcher output for details.`
+              `Grove: created ${branch}, but \`gt track --parent ${options.base}\` failed. ` +
+                `Run it manually in the worktree; see the Grove output for details.`
             );
           }
         } else {
@@ -178,7 +178,7 @@ async function createAndOpen(
     );
   } catch (err) {
     vscode.window.showErrorMessage(
-      `Worktree Watcher: failed to create worktree for ${branch}: ${err}`
+      `Grove: failed to create worktree for ${branch}: ${err}`
     );
     return;
   }

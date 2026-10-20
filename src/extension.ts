@@ -5,7 +5,7 @@ import * as path from 'path';
 import { registerSwitchCommand } from './switcher';
 import { registerWindow, unregisterWindow } from './registry';
 
-const CONFIG_SECTION = 'worktreeWatcher';
+const CONFIG_SECTION = 'grove';
 
 // git worktree add creates the folder before the .git file and checkout are
 // complete, so newly seen folders are polled until they look like a worktree.
@@ -23,11 +23,11 @@ const pendingPolls = new Map<string, NodeJS.Timeout>();
 let opQueue: Promise<void> = Promise.resolve();
 
 export function activate(context: vscode.ExtensionContext): void {
-  output = vscode.window.createOutputChannel('Worktree Watcher');
+  output = vscode.window.createOutputChannel('Grove');
   context.subscriptions.push(output);
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('worktreeWatcher.scan', () => {
+    vscode.commands.registerCommand('grove.scan', () => {
       scanWatchedDirectories();
     }),
     vscode.workspace.onDidChangeConfiguration((e) => {
