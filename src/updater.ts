@@ -51,6 +51,14 @@ export function registerUpdater(
     vscode.commands.registerCommand('grove.checkForUpdates', () => checkNow(context, log))
   );
 
+  // A recorded install has taken effect once a window runs it. Left in place,
+  // it would make a later release of the same version, after a manual
+  // downgrade, look installed already.
+  const installed = context.globalState.get<string>(INSTALLED_VERSION_KEY);
+  if (installed && compareVersions(context.extension.packageJSON.version, installed) >= 0) {
+    void context.globalState.update(INSTALLED_VERSION_KEY, undefined);
+  }
+
   // A development host runs the extension from source; installing a release
   // over it would only confuse things.
   if (context.extensionMode !== vscode.ExtensionMode.Production) {
