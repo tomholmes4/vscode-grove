@@ -4,6 +4,10 @@
   "description": "Keeps git worktrees in your workspace, and switches between, creates and sets up worktrees in their own windows.",
   "version": "0.0.5",
   "publisher": "thomasholmes",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tomholmes4/vscode-grove"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -78,7 +82,8 @@
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "package": "vsce package"
+    "package": "vsce package",
+    "release": "./scripts/release.sh"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
