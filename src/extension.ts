@@ -4,6 +4,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { registerSwitchCommand } from './switcher';
 import { registerWindow, unregisterWindow } from './registry';
+import { registerUpdater } from './updater';
 
 const CONFIG_SECTION = 'grove';
 
@@ -65,6 +66,8 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.workspace.onDidChangeWorkspaceFolders(() => updateWindowRegistration()),
     new vscode.Disposable(() => unregisterWindow())
   );
+
+  registerUpdater(context, log);
 
   restartWatchers();
 }

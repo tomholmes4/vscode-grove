@@ -36,6 +36,12 @@ Anything else a new worktree needs, such as `mise trust` or a codegen step, goes
 
 Output goes to the Grove log. stdin is closed, so a command that prompts fails instead of hanging. A failing command shows a warning but doesn't stop the commands after it, or the window from opening.
 
+## Updates
+
+Grove is released as a `.vsix` on the repository's GitHub releases rather than on the Marketplace, so VS Code's own extension auto-update never sees it. Instead, Grove checks the latest GitHub release itself: 15 seconds after a window opens and every 6 hours after that, skipping a check when any window has checked within the last hour. If the release is newer than the installed version, Grove downloads its `.vsix`, installs it, and offers **Reload Window** to start using it. `grove.autoUpdate` turns this off; **Grove: Check for Updates** checks on demand either way and reports what it found.
+
+The repository is private, so checks are made as the GitHub account you're signed in to in VS Code, with the `repo` scope (GitHub has no narrower scope that can read a private repository's releases). If you aren't signed in, background checks add a sign-in request to the Accounts menu rather than interrupting you, and check as soon as you sign in; the command asks directly.
+
 ## Configuration
 
 ```jsonc
@@ -54,7 +60,10 @@ Output goes to the Grove log. stdin is closed, so a command that prompts fails i
   // Defaults to ["mise trust"]; set [] to run nothing.
   "grove.postCreateCommands": [
     "mise trust"
-  ]
+  ],
+
+  // Install new GitHub releases of Grove automatically. Defaults to true.
+  "grove.autoUpdate": true
 }
 ```
 
@@ -68,6 +77,8 @@ npm run compile
 ```
 
 Then press F5 in VS Code to launch an Extension Development Host, or package with `npx vsce package` and install the `.vsix` via **Extensions: Install from VSIX…**.
+
+`npm run release` packages the version in `package.json` and publishes it as a GitHub release, which installed copies then pick up through the update check.
 
 ## Notes
 

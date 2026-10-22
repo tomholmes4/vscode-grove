@@ -2,7 +2,7 @@
   "name": "grove",
   "displayName": "Grove — Git Worktrees",
   "description": "Keeps git worktrees in your workspace, and switches between, creates and sets up worktrees in their own windows.",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "publisher": "thomasholmes",
   "repository": {
     "type": "git",
@@ -31,6 +31,10 @@
       {
         "command": "grove.showLog",
         "title": "Grove: Show Log"
+      },
+      {
+        "command": "grove.checkForUpdates",
+        "title": "Grove: Check for Updates"
       }
     ],
     "keybindings": [
@@ -74,6 +78,12 @@
           "default": [],
           "scope": "machine-overridable",
           "markdownDescription": "Directories to watch for git worktrees (absolute paths, `~` is expanded). Any direct child folder that is a linked git worktree is added to the workspace automatically, and removed from the workspace when the worktree is deleted."
+        },
+        "grove.autoUpdate": {
+          "type": "boolean",
+          "default": true,
+          "scope": "application",
+          "markdownDescription": "Check Grove's GitHub releases for a newer version every few hours and install it, then offer to reload the window. Grove isn't on the Marketplace, so VS Code's own extension auto-update doesn't cover it. Needs a GitHub sign-in with access to the repository; if you aren't signed in, the Accounts menu asks. **Grove: Check for Updates** checks now, whatever this is set to."
         }
       }
     }
