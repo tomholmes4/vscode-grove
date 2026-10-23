@@ -3,7 +3,7 @@
   "displayName": "Grove — Git Worktrees",
   "description": "Keeps git worktrees in your workspace, and switches between, creates and sets up worktrees in their own windows.",
   "version": "0.0.9",
-  "publisher": "thomasholmes",
+  "publisher": "tomholmes4",
   "repository": {
     "type": "git",
     "url": "https://github.com/tomholmes4/vscode-grove"
