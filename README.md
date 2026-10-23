@@ -8,6 +8,16 @@ Watches one or more directories for new git worktrees and keeps them in sync wit
 - When the worktree folder is deleted (e.g. `git worktree remove`), or its repository is closed, it is removed from the workspace.
 - On startup, when workspace folders change, and via the **Grove: Scan Now** command, existing worktrees in watched directories are (re)synced against the open repositories.
 
+## Installation
+
+Download the latest release's `.vsix` and install it:
+
+```sh
+curl -fsSL "$(curl -fsSL https://api.github.com/repos/tomholmes4/vscode-grove/releases/latest | grep -o 'https://[^"]*\.vsix' | head -1)" -o /tmp/grove.vsix && code --install-extension /tmp/grove.vsix
+```
+
+This needs the `code` command on your `PATH` (**Shell Command: Install 'code' command in PATH** in VS Code). Then reload any open windows. After that, Grove updates itself (see [Updates](#updates)).
+
 ## Switch Worktree
 
 The **Grove: Switch Worktree** command (`cmd+alt+w` / `ctrl+alt+w`) opens a picker of the git repository's worktrees plus any Graphite-tracked branches that don't have a worktree yet:
