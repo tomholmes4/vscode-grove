@@ -83,7 +83,7 @@
           "type": "boolean",
           "default": true,
           "scope": "application",
-          "markdownDescription": "Check Grove's GitHub releases for a newer version every few hours and install it, then offer to reload the window. Grove isn't on the Marketplace, so VS Code's own extension auto-update doesn't cover it. Needs a GitHub sign-in with access to the repository; if you aren't signed in, the Accounts menu asks. **Grove: Check for Updates** checks now, whatever this is set to."
+          "markdownDescription": "Check Grove's GitHub releases for a newer version every few hours and install it, then offer to reload the window. Grove isn't on the Marketplace, so VS Code's own extension auto-update doesn't cover it. **Grove: Check for Updates** checks now, whatever this is set to."
         }
       }
     }

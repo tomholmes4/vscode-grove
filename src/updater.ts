@@ -6,8 +6,9 @@ import * as vscode from 'vscode';
 // Grove is released as a .vsix attached to GitHub releases rather than through
 // the Marketplace, so VS Code's own extension auto-update never sees new
 // versions. This checks the repository's latest release instead and installs
-// its .vsix. The repository is private, so requests are made as the GitHub
-// account the user is signed in to in VS Code.
+// its .vsix. The repository is public, so no GitHub sign-in is needed; GitHub
+// allows 60 unauthenticated API requests an hour per IP address, far more than
+// these checks make.
 
 const CONFIG_SECTION = 'grove';
 const SHOW_LOG = 'Show Log';
@@ -19,9 +20,11 @@ const CHECK_INTERVAL_MS = 6 * 60 * 60_000;
 // in for the rest.
 const MIN_CHECK_GAP_MS = 60 * 60_000;
 
-// Reading a private repository's releases needs the `repo` scope; GitHub
-// OAuth apps have no read-only equivalent.
-const GITHUB_SCOPES = ['repo'];
+const GITHUB_API_HEADERS = {
+  Accept: 'application/vnd.github+json',
+  'X-GitHub-Api-Version': '2022-11-28',
+  'User-Agent': 'grove-vscode',
+};
 
 // globalState is shared by every window, which is how they coordinate.
 const LAST_CHECK_KEY = 'updater.lastCheck';
@@ -29,7 +32,7 @@ const INSTALLED_VERSION_KEY = 'updater.installedVersion';
 
 interface Release {
   tag_name: string;
-  assets: { name: string; url: string }[];
+  assets: { name: string; browser_download_url: string }[];
 }
 
 type CheckResult =
@@ -70,13 +73,6 @@ export function registerUpdater(
     new vscode.Disposable(() => {
       clearTimeout(startup);
       clearInterval(interval);
-    }),
-    // Signing in from the Accounts menu shouldn't have to wait for the next
-    // timer. Every window hears the event; only the one in use acts on it.
-    vscode.authentication.onDidChangeSessions((e) => {
-      if (e.provider.id === 'github' && vscode.window.state.focused) {
-        void checkInBackground(context, log);
-      }
     })
   );
 }
@@ -89,18 +85,11 @@ async function checkInBackground(
   if (!vscode.workspace.getConfiguration(CONFIG_SECTION).get<boolean>('autoUpdate', true)) {
     return;
   }
+  if (Date.now() - context.globalState.get<number>(LAST_CHECK_KEY, 0) < MIN_CHECK_GAP_MS) {
+    return;
+  }
   try {
-    // Without createIfNone, a missing sign-in becomes a request in the
-    // Accounts menu rather than a dialog.
-    const session = await vscode.authentication.getSession('github', GITHUB_SCOPES);
-    if (!session) {
-      log('Skipping update check: not signed in to GitHub (see the Accounts menu)');
-      return;
-    }
-    if (Date.now() - context.globalState.get<number>(LAST_CHECK_KEY, 0) < MIN_CHECK_GAP_MS) {
-      return;
-    }
-    const result = await enqueue(() => checkForUpdate(context, session.accessToken, log));
+    const result = await enqueue(() => checkForUpdate(context, log));
     if (result.kind === 'installed') {
       promptReload(result.version);
     }
@@ -109,27 +98,16 @@ async function checkInBackground(
   }
 }
 
-/** The command's check: signs in if needed and always reports the outcome. */
+/** The command's check: always reports the outcome. */
 async function checkNow(
   context: vscode.ExtensionContext,
   log: (message: string) => void
 ): Promise<void> {
-  let session: vscode.AuthenticationSession;
-  try {
-    session = await vscode.authentication.getSession('github', GITHUB_SCOPES, {
-      createIfNone: true,
-    });
-  } catch (err) {
-    // Declining the sign-in rejects.
-    log(`GitHub sign-in for the update check failed: ${err}`);
-    vscode.window.showWarningMessage('Grove: checking for updates needs a GitHub sign-in.');
-    return;
-  }
   let result: CheckResult;
   try {
     result = await vscode.window.withProgress(
       { location: vscode.ProgressLocation.Notification, title: 'Grove: checking for updates…' },
-      () => enqueue(() => checkForUpdate(context, session.accessToken, log))
+      () => enqueue(() => checkForUpdate(context, log))
     );
   } catch (err) {
     log(`Update check failed: ${err}`);
@@ -158,13 +136,12 @@ function enqueue<T>(task: () => Promise<T>): Promise<T> {
 /** Installs the latest release's .vsix when it is newer than what's installed. */
 async function checkForUpdate(
   context: vscode.ExtensionContext,
-  token: string,
   log: (message: string) => void
 ): Promise<CheckResult> {
   await context.globalState.update(LAST_CHECK_KEY, Date.now());
   const repo = githubRepo(context);
   const running: string = context.extension.packageJSON.version;
-  const release = await fetchLatestRelease(repo, token);
+  const release = await fetchLatestRelease(repo);
   const latest = release.tag_name.replace(/^v/, '');
   log(`Update check: running ${running}, latest release ${latest}`);
   if (compareVersions(latest, running) <= 0) {
@@ -183,7 +160,7 @@ async function checkForUpdate(
   const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'grove-update-'));
   try {
     const file = path.join(dir, asset.name);
-    await fs.promises.writeFile(file, await downloadAsset(asset.url, token));
+    await fs.promises.writeFile(file, await downloadAsset(asset.browser_download_url));
     await vscode.commands.executeCommand(
       'workbench.extensions.installExtension',
       vscode.Uri.file(file)
@@ -219,13 +196,20 @@ function githubRepo(context: vscode.ExtensionContext): string {
   return match[1];
 }
 
-async function fetchLatestRelease(repo: string, token: string): Promise<Release> {
+async function fetchLatestRelease(repo: string): Promise<Release> {
   const res = await fetch(`https://api.github.com/repos/${repo}/releases/latest`, {
-    headers: githubHeaders(token, 'application/vnd.github+json'),
+    headers: GITHUB_API_HEADERS,
   });
   if (res.status === 404) {
-    // GitHub answers 404, not 403, for a private repository the account can't see.
-    throw new Error(`no release found in ${repo}, or the signed-in GitHub account can't access it`);
+    throw new Error(`no release found in ${repo}`);
+  }
+  const rateLimited =
+    (res.status === 403 || res.status === 429) &&
+    res.headers.get('x-ratelimit-remaining') === '0';
+  if (rateLimited) {
+    throw new Error(
+      "GitHub's limit on unauthenticated requests from this network was reached; try again in an hour"
+    );
   }
   if (!res.ok) {
     throw new Error(`GitHub returned HTTP ${res.status} for ${repo}'s latest release`);
@@ -233,33 +217,12 @@ async function fetchLatestRelease(repo: string, token: string): Promise<Release>
   return (await res.json()) as Release;
 }
 
-/**
- * Downloads a release asset through the API, which redirects to a signed URL
- * on another host. That URL needs no credentials and mustn't be sent the
- * token, so the redirect is followed by hand without it.
- */
-async function downloadAsset(url: string, token: string): Promise<Buffer> {
-  let res = await fetch(url, {
-    headers: githubHeaders(token, 'application/octet-stream'),
-    redirect: 'manual',
-  });
-  const location = res.headers.get('location');
-  if (res.status >= 300 && res.status < 400 && location) {
-    res = await fetch(location);
-  }
+async function downloadAsset(url: string): Promise<Buffer> {
+  const res = await fetch(url, { headers: { 'User-Agent': GITHUB_API_HEADERS['User-Agent'] } });
   if (!res.ok) {
-    throw new Error(`downloading the release asset failed with HTTP ${res.status}`);
+    throw new Error(`downloading ${url} failed with HTTP ${res.status}`);
   }
   return Buffer.from(await res.arrayBuffer());
-}
-
-function githubHeaders(token: string, accept: string): Record<string, string> {
-  return {
-    Accept: accept,
-    Authorization: `Bearer ${token}`,
-    'X-GitHub-Api-Version': '2022-11-28',
-    'User-Agent': 'grove-vscode',
-  };
 }
 
 /** Compares dotted versions such as 0.0.6 numerically; negative when a < b. */
