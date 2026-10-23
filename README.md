@@ -1,3 +1,5 @@
+<p align="center"><img src="icon.png" alt="Grove" width="240"></p>
+
 # Grove
 
 Watches one or more directories for new git worktrees and keeps them in sync with your workspace:
