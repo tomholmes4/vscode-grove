@@ -2,7 +2,7 @@
   "name": "grove",
   "displayName": "Grove — Git Worktrees",
   "description": "Keeps git worktrees in your workspace, and switches between, creates and sets up worktrees in their own windows.",
-  "version": "0.0.9",
+  "version": "1.0.0",
   "publisher": "tomholmes4",
   "icon": "icon.png",
   "repository": {
